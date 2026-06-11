@@ -19,7 +19,9 @@ export async function callBackend<T extends ApiJson>(
 
   const data = (await response.json().catch(() => ({}))) as ApiJson;
   if (!response.ok) {
-    throw new Error(extractErrorMessage(data) ?? `Request failed with status ${response.status}.`);
+    throw new Error(
+      redactSecret(extractErrorMessage(data) ?? `Request failed with status ${response.status}.`),
+    );
   }
 
   return data as T;
@@ -100,4 +102,8 @@ function extractErrorMessage(data: ApiJson): string | undefined {
     return data.message;
   }
   return undefined;
+}
+
+function redactSecret(message: string): string {
+  return message.replace(/\bBearer\s+[^\s,;]+/gi, "Bearer [REDACTED]");
 }

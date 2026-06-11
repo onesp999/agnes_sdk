@@ -21,7 +21,7 @@ export class AgnesHTTPClient {
 
   async request(method: string, endpoint: string, options: RequestOptions = {}): Promise<JsonObject> {
     const response = await this.sendWithRetries(method, endpoint, options);
-    await raiseForStatus(response, endpoint);
+    await raiseForStatus(response, endpoint, this.config.apiKey);
     return parseJsonObject(response, endpoint);
   }
 
@@ -31,7 +31,7 @@ export class AgnesHTTPClient {
     options: RequestOptions = {},
   ): AsyncIterable<string> {
     const response = await this.send(method, endpoint, options);
-    await raiseForStatus(response, endpoint);
+    await raiseForStatus(response, endpoint, this.config.apiKey);
 
     const body = response.body;
     if (!body) {
@@ -96,12 +96,16 @@ export class AgnesHTTPClient {
   }
 }
 
-async function raiseForStatus(response: Response, endpoint: string): Promise<void> {
+async function raiseForStatus(
+  response: Response,
+  endpoint: string,
+  apiKey?: string,
+): Promise<void> {
   if (response.status < 400) {
     return;
   }
 
-  const message = await safeErrorMessage(response);
+  const message = await safeErrorMessage(response, { apiKey });
   const options = {
     endpoint,
     requestId: response.headers.get("x-request-id") ?? undefined,
@@ -135,7 +139,10 @@ async function parseJsonObject(response: Response, endpoint: string): Promise<Js
   });
 }
 
-async function safeErrorMessage(response: Response): Promise<string> {
+async function safeErrorMessage(
+  response: Response,
+  options: { apiKey?: string } = {},
+): Promise<string> {
   const fallback = `Agnes API request failed with status ${response.status}.`;
   let data: unknown;
 
@@ -151,14 +158,20 @@ async function safeErrorMessage(response: Response): Promise<string> {
 
   const error = data.error;
   if (isJsonObject(error) && typeof error.message === "string" && error.message.length > 0) {
-    return error.message;
+    return redactSecret(error.message, options.apiKey);
   }
 
   if (typeof data.message === "string" && data.message.length > 0) {
-    return data.message;
+    return redactSecret(data.message, options.apiKey);
   }
 
   return fallback;
+}
+
+function redactSecret(message: string, apiKey?: string): string {
+  let redacted = apiKey ? message.replaceAll(apiKey, "[REDACTED]") : message;
+  redacted = redacted.replace(/\bBearer\s+[^\s,;]+/gi, "Bearer [REDACTED]");
+  return redacted;
 }
 
 function buildUrl(

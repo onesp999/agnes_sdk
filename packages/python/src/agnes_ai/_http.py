@@ -143,12 +143,11 @@ class AgnesHTTPClient:
             request_id=response.headers.get("x-request-id"),
         )
 
-    @staticmethod
-    def _raise_for_status(response: httpx.Response, endpoint: str) -> None:
+    def _raise_for_status(self, response: httpx.Response, endpoint: str) -> None:
         if response.status_code < 400:
             return
 
-        message = _safe_error_message(response)
+        message = _safe_error_message(response, api_key=self._config.api_key)
         request_id = response.headers.get("x-request-id")
         kwargs = {
             "status_code": response.status_code,
@@ -167,7 +166,7 @@ class AgnesHTTPClient:
         raise AgnesAPIError(message, **kwargs)
 
 
-def _safe_error_message(response: httpx.Response) -> str:
+def _safe_error_message(response: httpx.Response, *, api_key: str | None = None) -> str:
     fallback = f"Agnes API request failed with status {response.status_code}."
     try:
         data = response.json()
@@ -181,10 +180,22 @@ def _safe_error_message(response: httpx.Response) -> str:
     if isinstance(error, Mapping):
         message = error.get("message")
         if isinstance(message, str) and message:
-            return message
+            return _redact_secret(message, api_key=api_key)
 
     message = data.get("message")
     if isinstance(message, str) and message:
-        return message
+        return _redact_secret(message, api_key=api_key)
 
     return fallback
+
+
+def _redact_secret(message: str, *, api_key: str | None = None) -> str:
+    redacted = message
+    if api_key:
+        redacted = redacted.replace(api_key, "[REDACTED]")
+
+    parts = redacted.split()
+    for index, part in enumerate(parts[:-1]):
+        if part.lower() == "bearer":
+            parts[index + 1] = "[REDACTED]"
+    return " ".join(parts)
