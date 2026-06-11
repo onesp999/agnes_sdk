@@ -1,6 +1,8 @@
 import { DEFAULT_BASE_URL } from "./constants.js";
 import { AgnesConfigurationError } from "./errors.js";
 
+export type AgnesFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
 export interface AgnesClientConfig {
   apiKey?: string;
   baseUrl?: string;
@@ -8,6 +10,7 @@ export interface AgnesClientConfig {
   maxRetries?: number;
   retryBackoff?: number;
   defaultHeaders?: Record<string, string>;
+  fetch?: AgnesFetch;
 }
 
 export interface ResolvedAgnesClientConfig {
@@ -17,6 +20,7 @@ export interface ResolvedAgnesClientConfig {
   maxRetries: number;
   retryBackoff: number;
   defaultHeaders: Record<string, string>;
+  fetch: AgnesFetch;
 }
 
 export function resolveConfig(config: AgnesClientConfig = {}): ResolvedAgnesClientConfig {
@@ -36,5 +40,6 @@ export function resolveConfig(config: AgnesClientConfig = {}): ResolvedAgnesClie
     maxRetries: config.maxRetries ?? 2,
     retryBackoff: config.retryBackoff ?? 500,
     defaultHeaders: config.defaultHeaders ?? {},
+    fetch: config.fetch ?? fetch,
   };
 }
