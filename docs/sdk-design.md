@@ -30,6 +30,38 @@ API keys must never be exposed in frontend code. The playground must call a
 local backend proxy, and the backend must read credentials from environment
 variables.
 
+## Shared API Constants
+
+Both SDKs should use the same API constants:
+
+| Name | Value |
+| --- | --- |
+| `DEFAULT_BASE_URL` | `https://apihub.agnes-ai.com` |
+| `CHAT_MODEL` | `agnes-2.0-flash` |
+| `IMAGE_MODEL` | `agnes-image-2.1-flash` |
+| `VIDEO_MODEL` | `agnes-video-v2.0` |
+| `CHAT_COMPLETIONS_ENDPOINT` | `/v1/chat/completions` |
+| `IMAGE_GENERATIONS_ENDPOINT` | `/v1/images/generations` |
+| `VIDEO_CREATE_ENDPOINT` | `/v1/videos` |
+| `VIDEO_QUERY_ENDPOINT` | `/agnesapi` |
+
+The Python SDK uses snake_case configuration names in Python APIs where
+appropriate. The TypeScript SDK uses camelCase configuration names and maps to
+Agnes API snake_case fields at request-building time.
+
+## Configuration
+
+Both SDKs should support the same configuration semantics:
+
+| Python | TypeScript | Purpose |
+| --- | --- | --- |
+| `api_key` | `apiKey` | Agnes API key, required unless `AGNES_API_KEY` is set. |
+| `base_url` | `baseUrl` | API base URL, defaults to `DEFAULT_BASE_URL`. |
+| `timeout` | `timeout` | Request timeout. |
+| `max_retries` | `maxRetries` | Maximum retry attempts for retryable failures. |
+| `retry_backoff` | `retryBackoff` | Base retry backoff. |
+| `default_headers` | `defaultHeaders` | Additional headers merged into requests. |
+
 ## Errors
 
 Both SDKs should expose consistent error categories:
