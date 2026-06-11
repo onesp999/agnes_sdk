@@ -1,3 +1,4 @@
+from .client import AgnesClient
 from .config import AgnesConfig
 from .constants import (
     CHAT_COMPLETIONS_ENDPOINT,
@@ -22,6 +23,7 @@ from .errors import (
 from .videos import extract_video_url, validate_video_options
 
 __all__ = [
+    "AgnesClient",
     "AgnesAPIAuthenticationError",
     "AgnesAPIBadRequestError",
     "AgnesAPIError",
