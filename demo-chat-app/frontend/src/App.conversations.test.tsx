@@ -94,6 +94,46 @@ describe("conversation UI persistence", () => {
     expect(second.querySelector(".conversation-row.active")?.textContent).toContain("Persistent hello");
   });
 
+  it("switches Chat, Image, and Video capabilities from the composer", async () => {
+    const container = await renderApp();
+    await waitFor(() => !container.querySelector<HTMLButtonElement>(".new-chat")?.disabled);
+
+    const imageMode = findButton(container, "Image");
+    await act(async () => imageMode.click());
+    expect(imageMode.getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector<HTMLTextAreaElement>(".composer textarea")?.placeholder).toBe("描述你想生成的图片");
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="模型"]')?.value).toBe("agnes-image-2.0-flash");
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="图片尺寸"]')).not.toBeNull();
+
+    const videoMode = findButton(container, "Video");
+    await act(async () => videoMode.click());
+    expect(videoMode.getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector<HTMLTextAreaElement>(".composer textarea")?.placeholder).toBe("描述你想生成的视频");
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="画面比例"]')).not.toBeNull();
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="视频时长"]')).not.toBeNull();
+
+    await act(async () => findButton(container, "Chat").click());
+  });
+
+  it("opens the settings drawer, validates Developer JSON, and closes with Escape", async () => {
+    const container = await renderApp();
+    await waitFor(() => !container.querySelector<HTMLButtonElement>(".new-chat")?.disabled);
+
+    await act(async () => container.querySelector<HTMLButtonElement>('.settings-trigger')!.click());
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    await act(async () => container.querySelector<HTMLButtonElement>('[role="switch"]')!.click());
+    const advanced = container.querySelector<HTMLTextAreaElement>('[aria-label="高级 JSON 参数"]')!;
+    await act(async () => {
+      setTextareaValue(advanced, "{");
+      advanced.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("不是有效的 JSON");
+    await act(async () => container.querySelector<HTMLButtonElement>('[role="switch"]')!.click());
+
+    await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+  });
+
   it("stops an active generation and prevents duplicate submit", async () => {
     chatResponse = (init) => new Response(new ReadableStream<Uint8Array>({
       start(controller) {

@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import ReactMarkdown from "react-markdown";
+import { Icon } from "../Icon/Icon.js";
 import { copyText } from "../../utils/clipboard.js";
 
 export function MarkdownMessage({ content }: { content: string }) {
@@ -22,6 +23,7 @@ export function MarkdownMessage({ content }: { content: string }) {
 
 function CodeBlock({ children, ...props }: ComponentPropsWithoutRef<"pre">) {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const language = codeLanguage(children);
 
   useEffect(() => {
     if (copyState === "idle") return;
@@ -39,11 +41,20 @@ function CodeBlock({ children, ...props }: ComponentPropsWithoutRef<"pre">) {
   }
 
   return <div className="code-block">
-    <button type="button" onClick={() => void copy()}>
-      {copyState === "copied" ? "已复制" : copyState === "failed" ? "复制失败" : "复制代码"}
-    </button>
+    <div className="code-block-header"><span>{language || "Code"}</span><button type="button" onClick={() => void copy()}>
+      <Icon name="copy" />{copyState === "copied" ? "已复制" : copyState === "failed" ? "复制失败" : "复制代码"}
+    </button></div>
     <pre {...props}>{children}</pre>
   </div>;
+}
+
+function codeLanguage(node: ReactNode): string {
+  const child = Array.isArray(node) ? node[0] : node;
+  if (!isValidElement<{ className?: string }>(child)) return "";
+  const match = child.props.className?.match(/language-([\w-]+)/);
+  if (!match) return "";
+  const language = match[1];
+  return language === "ts" ? "TypeScript" : language === "js" ? "JavaScript" : language;
 }
 
 function nodeText(node: ReactNode): string {

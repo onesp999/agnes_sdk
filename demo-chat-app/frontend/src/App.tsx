@@ -1,5 +1,7 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
-import { MarkdownMessage } from "./components/Message/MarkdownMessage.js";
+import { Icon } from "./components/Icon/Icon.js";
+import { MessageItem } from "./components/Message/MessageItem.js";
+import { SettingsDrawer } from "./components/SettingsDrawer/SettingsDrawer.js";
 import {
   appendMessage,
   createMessage,
@@ -12,7 +14,6 @@ import {
 import { useConversations } from "./features/conversations/useConversations.js";
 import { readImageResult, readImageUrl, readVideoResult, videoMessageStatus } from "./features/media/results.js";
 import {
-  advancedHelp,
   buildParameters,
   composerPlaceholder,
   getModelKind,
@@ -69,7 +70,7 @@ export function App() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (window.matchMedia("(max-width: 760px)").matches) setSidebarOpen(false);
+    if (window.matchMedia("(max-width: 900px)").matches) setSidebarOpen(false);
     fetch("/health")
       .then((response) => response.json())
       .then((data: { mode?: string }) => setStatus(data.mode === "agnes" ? "agnes" : "demo"))
@@ -513,6 +514,15 @@ export function App() {
   function keyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); }
   }
+  function switchMode(kind: "chat" | "image" | "video") {
+    const groupIndex = kind === "chat" ? 0 : kind === "image" ? 1 : 2;
+    updateSetting("model", modelPresetGroups[groupIndex].models[0]);
+    inputRef.current?.focus();
+  }
+  function resizeComposer(target: HTMLTextAreaElement) {
+    target.style.height = "auto";
+    target.style.height = `${Math.min(target.scrollHeight, 208)}px`;
+  }
 
   const statusText = status === "agnes" ? "Real Agnes 已连接" : status === "demo" ? "Showcase 演示模式" : status === "offline" ? "后端离线" : "连接中";
   const modelText = settings.model.trim() || "模型默认值";
@@ -522,13 +532,21 @@ export function App() {
     : "custom";
   const conversationGroups = groupConversations(conversationState.conversations);
   const activePending = activeGeneration?.conversationId === conversationState.activeId;
+  const conversationTitle = conversationState.activeConversation?.title || "新对话";
+  const activeModelGroup = modelPresetGroups[modelKind === "chat" ? 0 : modelKind === "image" ? 1 : 2];
+  const activeModelOptions = activeModelGroup.models as readonly string[];
+  const emptyCopy = modelKind === "image"
+    ? { eyebrow: "Image studio", title: "把画面想法变成作品", body: "描述主体、氛围和构图，Agnes 会把它整理成清晰的视觉结果。" }
+    : modelKind === "video"
+      ? { eyebrow: "Video studio", title: "从一个镜头开始创作", body: "写下场景与运动方式，Agnes 会持续跟踪生成状态。" }
+      : { eyebrow: "Chat workspace", title: "今天想和 Agnes 一起完成什么？", body: "分析问题、编写代码、整理想法，或从一个问题开始探索。" };
 
   return (
     <main className={`app ${sidebarOpen ? "" : "collapsed"}`}>
       {sidebarOpen && <button className="scrim" aria-label="关闭菜单" onClick={() => setSidebarOpen(false)} />}
-      <aside className="sidebar">
-        <header><button className="brand" onClick={newChat}><span>A</span>Agnes Studio</button><button className="collapse" onClick={() => setSidebarOpen(false)}>‹</button></header>
-        <button className="new-chat" onClick={newChat} disabled={!conversationState.ready}><b>＋</b>新对话<kbd>Ctrl K</kbd></button>
+      <aside className="sidebar" aria-label="Agnes Studio 导航">
+        <header><button className="brand" onClick={newChat}><span>A</span><span className="brand-copy">Agnes Studio<small>AI workspace</small></span></button><button className="icon-button collapse" onClick={() => setSidebarOpen(false)} aria-label="收起侧栏"><Icon name="panel-left" /></button></header>
+        <button className="new-chat" onClick={newChat} disabled={!conversationState.ready}><Icon name="new-chat" />新对话<kbd>Ctrl K</kbd></button>
         <nav className="conversation-list" aria-label="历史对话">
           {!conversationState.ready && <p className="conversation-loading">正在恢复对话…</p>}
           {conversationGroups.map((group) => <section key={group.label}>
@@ -541,108 +559,84 @@ export function App() {
                 <span>{conversation.title}</span>
               </button>
               <div className="conversation-actions">
-                <button type="button" onClick={() => renameChat(conversation)} aria-label={`重命名 ${conversation.title}`}>✎</button>
-                <button type="button" onClick={() => deleteChat(conversation)} aria-label={`删除 ${conversation.title}`}>×</button>
+                <button type="button" onClick={() => renameChat(conversation)} aria-label={`重命名 ${conversation.title}`} title="重命名"><Icon name="edit" /></button>
+                <button type="button" onClick={() => deleteChat(conversation)} aria-label={`删除 ${conversation.title}`} title="删除"><Icon name="trash" /></button>
               </div>
             </div>)}
           </section>)}
         </nav>
-        <footer><div className="profile-avatar">E</div><p><strong>本地用户</strong><small>{conversationState.storageKind === "memory" ? "本地临时模式" : statusText}</small></p><i>•••</i></footer>
+        <footer><span className={`runtime-dot ${status}`} /><p><strong>{conversationState.storageKind === "memory" ? "本地临时模式" : statusText}</strong><small>{status === "agnes" ? "Agnes API" : status === "demo" ? "Local showcase" : "Runtime status"}</small></p><button className="icon-button settings-trigger model" type="button" onClick={() => setSettingsOpen(true)} aria-label="打开设置" aria-expanded={settingsOpen} title="设置"><Icon name="settings" /></button></footer>
       </aside>
 
       <section className="stage">
         <header className="topbar">
-          {!sidebarOpen && <button className="menu" onClick={() => setSidebarOpen(true)}>☰</button>}
-          <button className="model" onClick={() => setSettingsOpen((open) => !open)} aria-expanded={settingsOpen}>
-            <span className="model-name">{modelText}</span><span>{settingsOpen ? "⌃" : "⌄"}</span>
-          </button>
-          <span className={`status ${status}`}><i />{statusText}</span>
+          {!sidebarOpen && <button className="icon-button menu" onClick={() => setSidebarOpen(true)} aria-label="打开侧栏"><Icon name="menu" /></button>}
+          <div className="conversation-context"><strong>{conversationTitle}</strong><small>{modelText}</small></div>
+          <button className="icon-button mobile-settings-trigger" type="button" onClick={() => setSettingsOpen(true)} aria-label="打开设置" aria-expanded={settingsOpen}><Icon name="settings" /></button>
         </header>
 
-        {settingsOpen && <section className="settings-panel" aria-label="请求参数设置">
-          <header><div><strong>请求参数</strong><small>配置会应用到之后发送的消息</small></div><button type="button" onClick={() => setSettingsOpen(false)} aria-label="关闭请求参数">×</button></header>
-          <div className="developer-toggle">
-            <div><strong>Developer Mode</strong><small>显示自定义模型和高级 JSON 参数</small></div>
-            <button type="button" role="switch" aria-checked={developerMode} onClick={toggleDeveloperMode}>{developerMode ? "已开启" : "未开启"}</button>
-          </div>
-          <div className="settings-grid">
-            <label className="wide">模型预设<select value={selectedPreset} onChange={(event) => {
-              if (event.target.value !== "custom") updateSetting("model", event.target.value);
-            }}>
-              {modelPresetGroups.map((group) => <optgroup label={group.label} key={group.label}>
-                {group.models.map((model) => <option value={model} key={model}>{model}</option>)}
-              </optgroup>)}
-              {developerMode && <option value="custom">自定义模型</option>}
-            </select></label>
-            {developerMode && <label className="wide">模型名称（可自定义）<input value={settings.model} onChange={(event) => updateSetting("model", event.target.value)} placeholder="agnes-2.0-flash" maxLength={200} /></label>}
-            {modelKind === "chat" ? <>
-              <label>Temperature<input type="number" min="0" max="2" step="0.1" value={settings.temperature} onChange={(event) => updateSetting("temperature", event.target.value)} placeholder="模型默认" /></label>
-              <label>Top P<input type="number" min="0" max="1" step="0.05" value={settings.topP} onChange={(event) => updateSetting("topP", event.target.value)} placeholder="模型默认" /></label>
-              <label>Max tokens<input type="number" min="1" max="1000000" step="1" value={settings.maxTokens} onChange={(event) => updateSetting("maxTokens", event.target.value)} placeholder="模型默认" /></label>
-              <label className="wide">System Prompt<textarea rows={3} value={settings.systemPrompt} onChange={(event) => updateSetting("systemPrompt", event.target.value)} placeholder="可选，例如：请用简洁的中文回答。" maxLength={8000} /></label>
-            </> : modelKind === "image" ? <>
-              <label>图片尺寸<select value={settings.imageSize} onChange={(event) => updateSetting("imageSize", event.target.value)}>
-                <option value="1024x1024">1024 × 1024</option>
-                <option value="1024x768">1024 × 768</option>
-                <option value="768x1024">768 × 1024</option>
-              </select></label>
-              <label>输出格式<select value={settings.imageResponseFormat} onChange={(event) => updateSetting("imageResponseFormat", event.target.value as RequestSettings["imageResponseFormat"])}>
-                <option value="url">URL</option>
-                <option value="b64_json">Base64</option>
-              </select></label>
-              <label className="wide">参考图片 URL<input type="url" value={settings.imageReference} onChange={(event) => updateSetting("imageReference", event.target.value)} placeholder="可选，https://…" /></label>
-              <div className="model-kind-note wide">普通生成只需 Prompt；参考图、尺寸和输出格式会映射到 Agnes Image SDK。</div>
-            </> : <>
-              <label>画面比例<select value={settings.videoAspectRatio} onChange={(event) => updateSetting("videoAspectRatio", event.target.value as RequestSettings["videoAspectRatio"])}>
-                <option value="16:9">16:9 横屏</option>
-                <option value="9:16">9:16 竖屏</option>
-                <option value="1:1">1:1 方形</option>
-              </select></label>
-              <label>视频时长<select value={settings.videoDurationSeconds} onChange={(event) => updateSetting("videoDurationSeconds", event.target.value as RequestSettings["videoDurationSeconds"])}>
-                <option value="3">3 秒</option>
-                <option value="5">5 秒</option>
-              </select></label>
-              <div className="model-kind-note wide">视频模型会调用 /api/videos；创建任务后会自动跟踪状态，直到完成或失败。</div>
-            </>}
-          </div>
-          {developerMode && <details>
-            <summary>高级 JSON 参数</summary>
-            <textarea className="advanced-json" rows={6} spellCheck={false} value={settings.advanced} onChange={(event) => updateSetting("advanced", event.target.value)} aria-label="高级 JSON 参数" />
-            <small>{advancedHelp(modelKind)}</small>
-          </details>}
-          <footer><button type="button" onClick={() => setSettings(defaultSettings)}>恢复默认</button><span>{modelText}</span></footer>
-        </section>}
+        <SettingsDrawer
+          developerMode={developerMode}
+          modelKind={modelKind}
+          open={settingsOpen}
+          selectedPreset={selectedPreset}
+          settings={settings}
+          onClose={() => setSettingsOpen(false)}
+          onReset={setSettings}
+          onToggleDeveloper={toggleDeveloperMode}
+          onUpdate={updateSetting}
+        />
 
-        {messages.length === 0 ? <>
-          <div className="welcome"><div className="hero">A</div><h1>今天想聊些什么？</h1><p>我可以帮你分析问题、编写代码、整理想法，或一起探索新的可能。</p></div>
-          <div className="suggestions">{suggestions.map(([title, text]) => <button key={title} onClick={() => void send(text)}><strong>{title}</strong><span>{text}</span><i>↗</i></button>)}</div>
-        </> : <div className="thread" aria-live="polite">
-          {messages.map((message) => <article className={`${message.role} ${message.status}`} key={message.id}><div className="avatar">{message.role === "assistant" ? "A" : "E"}</div><div className="message-body"><strong>{message.role === "assistant" ? "Agnes AI" : "你"}</strong>{message.content && (message.role === "assistant" ? <MarkdownMessage content={message.content} /> : <p>{message.content}</p>)}
-            {(message.status === "pending" || message.status === "streaming") && <div className="typing" aria-label="正在生成"><i /><i /><i /></div>}
-            {message.media?.kind === "image" && <img className="generated-media" src={message.media.url} alt="Agnes 生成的图片" />}
-            {message.media?.kind === "video" && <video className="generated-media" src={message.media.url} controls />}
-            <div className="message-actions">
-              {message.content && <button type="button" onClick={() => void copyMessage(message)}>{copiedMessageId === message.id ? "已复制" : "复制"}</button>}
-              {message.role === "user" && getModelKind(message.model ?? settings.model) === "chat" && <button type="button" disabled={pending} onClick={() => editAndResend(message)}>编辑并重发</button>}
-              {message.role === "user" && getModelKind(message.model ?? settings.model) === "image" && <button type="button" disabled={pending} onClick={() => reusePrompt(message)}>复用提示词</button>}
-              {message.role === "user" && getModelKind(message.model ?? settings.model) === "video" && <button type="button" disabled={pending} onClick={() => reusePrompt(message)}>复用提示词</button>}
-              {message.role === "assistant" && getModelKind(message.model ?? settings.model) === "chat" && message.status === "completed" && <button type="button" disabled={pending} onClick={() => retryOrRegenerate(message)}>重新生成</button>}
-              {message.role === "assistant" && getModelKind(message.model ?? settings.model) === "chat" && (message.status === "failed" || message.status === "cancelled") && <button type="button" disabled={pending} onClick={() => retryOrRegenerate(message)}>重试</button>}
-              {message.role === "assistant" && getModelKind(message.model ?? settings.model) === "image" && message.status === "completed" && <button type="button" disabled={pending} onClick={() => retryImage(message)}>重新生成图片</button>}
-              {message.role === "assistant" && getModelKind(message.model ?? settings.model) === "image" && message.status === "failed" && <button type="button" disabled={pending} onClick={() => retryImage(message)}>重试图片</button>}
-              {message.role === "assistant" && getModelKind(message.model ?? settings.model) === "video" && message.status === "failed" && <button type="button" disabled={pending} onClick={() => retryVideo(message)}>重试视频</button>}
-              {message.media?.kind === "image" && <a className="download-media" href={message.media.url} download="agnes-image.png" target="_blank" rel="noreferrer">下载图片</a>}
-              {activeGeneration?.assistantId === message.id && <button type="button" className="stop-action" onClick={stopGeneration}>停止生成</button>}
-            </div>
-          </div></article>)}
-          {mediaPendingConversationId === conversationState.activeId && !messages.some((message) => message.status === "pending" || message.status === "streaming") && <article><div className="avatar">A</div><div><strong>Agnes AI</strong><div className="typing" aria-label="正在生成"><i /><i /><i /></div></div></article>}
+        {messages.length === 0 ? <div className="empty-state">
+          <div className="welcome"><div className="hero"><Icon name={modelKind === "image" ? "image" : modelKind === "video" ? "video" : "sparkles"} /></div><span>{emptyCopy.eyebrow}</span><h1>{emptyCopy.title}</h1><p>{emptyCopy.body}</p></div>
+          {modelKind === "chat" && <div className="suggestions">{suggestions.map(([title, text]) => <button key={title} onClick={() => void send(text)}><span><strong>{title}</strong><small>{text}</small></span><Icon name="arrow-up" /></button>)}</div>}
+        </div>
+        : <div className="thread" aria-live="polite">
+          {messages.map((message) => <MessageItem
+            active={activeGeneration?.assistantId === message.id}
+            copied={copiedMessageId === message.id}
+            currentModel={settings.model}
+            developerMode={developerMode}
+            key={message.id}
+            message={message}
+            pending={pending}
+            onCopy={(item) => void copyMessage(item)}
+            onEdit={editAndResend}
+            onReuse={reusePrompt}
+            onRetryChat={retryOrRegenerate}
+            onRetryImage={retryImage}
+            onRetryVideo={retryVideo}
+            onStop={stopGeneration}
+          />)}
         </div>}
 
-        <div className="composer-wrap"><form className="composer" onSubmit={submit}>
-          <textarea ref={inputRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={keyDown} placeholder={composerPlaceholder(modelKind)} aria-label="发送消息" rows={1} disabled={!conversationState.ready} />
-          <div><button type="button" className="tool">＋</button><span />{activePending
-            ? <button type="button" className="send stop" onClick={stopGeneration} aria-label="停止生成">■</button>
-            : <button className="send" disabled={pending || !draft.trim()}>↑</button>}
+        <div className="composer-wrap"><form className={`composer composer-${modelKind}`} onSubmit={submit}>
+          <textarea ref={inputRef} value={draft} onChange={(event) => { setDraft(event.target.value); resizeComposer(event.target); }} onKeyDown={keyDown} placeholder={composerPlaceholder(modelKind)} aria-label="发送消息" rows={1} disabled={!conversationState.ready} />
+          <div className="composer-controls">
+            <button type="button" className="icon-button composer-add" aria-label="添加附件（暂不可用）" title="附件能力暂未开放" disabled><Icon name="new-chat" /></button>
+            <div className="mode-switch" role="group" aria-label="创作模式">
+              <button type="button" aria-pressed={modelKind === "chat"} onClick={() => switchMode("chat")}><Icon name="sparkles" />Chat</button>
+              <button type="button" aria-pressed={modelKind === "image"} onClick={() => switchMode("image")}><Icon name="image" />Image</button>
+              <button type="button" aria-pressed={modelKind === "video"} onClick={() => switchMode("video")}><Icon name="video" />Video</button>
+            </div>
+            <label className="composer-select model-select"><span className="sr-only">模型</span><select aria-label="模型" value={settings.model} onChange={(event) => updateSetting("model", event.target.value)}>
+              {!activeModelOptions.includes(settings.model) && <option value={settings.model}>{settings.model}</option>}
+              {activeModelOptions.map((model) => <option value={model} key={model}>{model}</option>)}
+            </select><Icon name="chevron-down" /></label>
+            {modelKind === "image" && <label className="composer-select compact-select"><span className="sr-only">图片尺寸</span><select aria-label="图片尺寸" value={settings.imageSize} onChange={(event) => updateSetting("imageSize", event.target.value)}>
+              <option value="1024x1024">1:1</option><option value="1024x768">4:3</option><option value="768x1024">3:4</option>
+            </select><Icon name="chevron-down" /></label>}
+            {modelKind === "video" && <>
+              <label className="composer-select compact-select"><span className="sr-only">画面比例</span><select aria-label="画面比例" value={settings.videoAspectRatio} onChange={(event) => updateSetting("videoAspectRatio", event.target.value as RequestSettings["videoAspectRatio"])}>
+                <option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option>
+              </select><Icon name="chevron-down" /></label>
+              <label className="composer-select compact-select"><span className="sr-only">视频时长</span><select aria-label="视频时长" value={settings.videoDurationSeconds} onChange={(event) => updateSetting("videoDurationSeconds", event.target.value as RequestSettings["videoDurationSeconds"])}>
+                <option value="3">3s</option><option value="5">5s</option>
+              </select><Icon name="chevron-down" /></label>
+            </>}
+            <span className="composer-spacer" />{activePending
+              ? <button type="button" className="send stop" onClick={stopGeneration} aria-label="停止生成" title="停止生成"><Icon name="stop" /></button>
+              : <button className="send" disabled={pending || !draft.trim()} aria-label="发送" title="发送"><Icon name="arrow-up" /></button>}
           </div>
         </form><small>{modelKind === "chat" ? "Agnes AI 可能会犯错，请核查重要信息。" : "媒体生成可能需要一些时间，请勿重复提交。"}</small></div>
       </section>
