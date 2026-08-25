@@ -33,8 +33,27 @@ const chatResult = await client.chat.create({
 });
 ```
 
-`chat.stream(...)` currently returns raw text chunks from the HTTP stream. The
-Agnes stream event format still needs real API verification.
+Use `chat.streamEvents(...)` for parsed product-facing events. It yields `delta`,
+`finish`, `usage`, and `done` events while buffering arbitrary SSE chunk
+boundaries:
+
+```ts
+const controller = new AbortController();
+
+for await (const event of client.chat.streamEvents(
+  { messages: [{ role: "user", content: "Tell me a short story" }] },
+  { signal: controller.signal },
+)) {
+  if (event.type === "delta" && event.content) {
+    process.stdout.write(event.content);
+  }
+}
+```
+
+Calling `controller.abort()` throws `AgnesAPIAbortError`. The configured SDK
+timeout remains active for the full stream lifetime and throws
+`AgnesAPITimeoutError`. `chat.stream(...)` remains available as a backward-
+compatible raw text-chunk escape hatch.
 
 ## Image
 

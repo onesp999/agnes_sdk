@@ -1,4 +1,9 @@
-import { AgnesAPIError, AgnesClient } from "@agnes-ai/sdk";
+import {
+  AgnesAPIError,
+  AgnesClient,
+  type AgnesRequestOptions,
+  type ChatStreamEvent,
+} from "@agnes-ai/sdk";
 import express, { type NextFunction, type Request, type Response } from "express";
 import path from "node:path";
 
@@ -10,6 +15,10 @@ type MediaCreatePayload = RequestParameters & { prompt: string };
 export interface AgnesDemoClient {
   chat: {
     create(payload: ChatCreatePayload): Promise<Record<string, unknown>>;
+    streamEvents(
+      payload: ChatCreatePayload,
+      options?: AgnesRequestOptions,
+    ): AsyncIterable<ChatStreamEvent>;
   };
   images: {
     generate(payload: MediaCreatePayload): Promise<Record<string, unknown>>;
@@ -47,6 +56,60 @@ export function createApp(options: AppOptions = {}) {
       response.json(await clientFactory().chat.create({ ...parameters, messages }));
     } catch (error) {
       next(error);
+    }
+  });
+
+  app.post("/api/chat/stream", async (request, response, next) => {
+    const controller = new AbortController();
+    let completed = false;
+    const onDisconnect = () => {
+      if (!completed) controller.abort();
+    };
+    request.once("aborted", onDisconnect);
+    response.once("close", onDisconnect);
+
+    try {
+      const messages = validateMessages(request.body?.messages);
+      const parameters = validateParameters(request.body?.parameters, "chat");
+      const events = !process.env.AGNES_API_KEY && !options.clientFactory
+        ? mockChatStream(messages, parameters, controller.signal)
+        : clientFactory().chat.streamEvents(
+          { ...parameters, messages },
+          { signal: controller.signal },
+        );
+
+      response.status(200);
+      response.set({
+        "Cache-Control": "no-store",
+        "Content-Type": "application/x-ndjson; charset=utf-8",
+        "X-Accel-Buffering": "no",
+      });
+      response.flushHeaders();
+
+      for await (const event of events) {
+        if (controller.signal.aborted) return;
+        writeNdjson(response, browserStreamEvent(event));
+      }
+      completed = true;
+      response.end();
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      if (!response.headersSent) {
+        next(error);
+        return;
+      }
+      writeNdjson(response, {
+        type: "error",
+        error: {
+          type: error instanceof Error ? error.name : "Error",
+          message: safeMessage(error),
+        },
+      });
+      completed = true;
+      response.end();
+    } finally {
+      request.removeListener("aborted", onDisconnect);
+      response.removeListener("close", onDisconnect);
     }
   });
 
@@ -233,6 +296,54 @@ function mockCompletion(messages: ChatMessage[], parameters: RequestParameters) 
       finish_reason: "stop",
     }],
   };
+}
+
+async function* mockChatStream(
+  messages: ChatMessage[],
+  parameters: RequestParameters,
+  signal: AbortSignal,
+): AsyncIterable<ChatStreamEvent> {
+  const completion = mockCompletion(messages, parameters);
+  const content = String(((completion.choices[0] as { message: { content: string } }).message.content));
+  const chunks = content.match(/.{1,18}/gs) ?? [content];
+  for (const chunk of chunks) {
+    if (signal.aborted) return;
+    yield { type: "delta", choiceIndex: 0, delta: { content: chunk }, content: chunk };
+    await delay(15);
+  }
+  yield { type: "finish", choiceIndex: 0, finishReason: "stop" };
+  yield { type: "done" };
+}
+
+function browserStreamEvent(event: ChatStreamEvent): Record<string, unknown> {
+  switch (event.type) {
+    case "delta":
+      return {
+        type: event.type,
+        choiceIndex: event.choiceIndex,
+        ...(event.role ? { role: event.role } : {}),
+        ...(event.content !== undefined ? { content: event.content } : {}),
+        ...(event.reasoningContent !== undefined ? { reasoningContent: event.reasoningContent } : {}),
+      };
+    case "finish":
+      return {
+        type: event.type,
+        choiceIndex: event.choiceIndex,
+        finishReason: event.finishReason,
+      };
+    case "usage":
+      return { type: event.type, usage: event.usage };
+    case "done":
+      return { type: event.type };
+  }
+}
+
+function writeNdjson(response: Response, event: Record<string, unknown>) {
+  response.write(`${JSON.stringify(event)}\n`);
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function mockImage(parameters: RequestParameters) {

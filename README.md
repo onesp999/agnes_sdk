@@ -9,6 +9,7 @@ The repository currently contains:
 - a server-side TypeScript SDK package for Node.js backends
 - FastAPI and Express proxy examples
 - a Vite + React playground that talks only to a local backend proxy
+- Agnes Studio, a local-first multimodal product showcase with safe mock mode
 - mock-first tests and optional real API smoke-test guidance
 
 Default tests do not call the real Agnes API and do not require
@@ -61,14 +62,20 @@ examples/node-express/
 
 apps/playground/
   src/                              Vite + React manual debugging UI
+
+demo-chat-app/
+  frontend/                         Agnes Studio React product UI
+  backend/                          Local mock or real-SDK Express bridge
 ```
+
+For the product showcase, architecture, security boundary, and local run instructions, see [Agnes Studio](demo-chat-app/README.md).
 
 ## Capabilities
 
 | Capability | Python SDK | TypeScript SDK | Backend Examples | Playground |
 | --- | --- | --- | --- | --- |
 | Chat completions | Yes | Yes | Yes | Yes |
-| Chat streaming | Raw chunk pass-through | Raw chunk pass-through | No dedicated route yet | Not yet |
+| Chat streaming | Raw chunk pass-through | Parsed events + raw chunks | No dedicated route yet | Not yet |
 | Image generation | Yes | Yes | Yes | Yes |
 | Image-to-image input | request `extra_body.image` default | request `extra_body.image` default | Yes | URL input |
 | Video create | Yes | Yes | Yes | Yes |
@@ -314,14 +321,17 @@ const chatResult = await client.chat.create({
 });
 ```
 
-Streaming returns raw text chunks until the real Agnes stream event format is
-confirmed:
+Use `streamEvents()` for parsed `delta`, `finish`, `usage`, and `done` events.
+Pass an optional caller `AbortSignal` to cancel the request. The raw `stream()`
+method remains available for backward compatibility:
 
 ```ts
-for await (const chunk of client.chat.stream({
-  messages: [{ role: "user", content: "Tell me a short story" }],
-})) {
-  process.stdout.write(chunk);
+const controller = new AbortController();
+for await (const event of client.chat.streamEvents(
+  { messages: [{ role: "user", content: "Tell me a short story" }] },
+  { signal: controller.signal },
+)) {
+  if (event.type === "delta" && event.content) process.stdout.write(event.content);
 }
 ```
 

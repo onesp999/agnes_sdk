@@ -18,6 +18,25 @@ describeIntegration("Agnes API smoke tests", () => {
     expect(Array.isArray(result.choices)).toBe(true);
   });
 
+  it("chat streaming smoke returns parsed events", async () => {
+    const client = new AgnesClient();
+    const eventTypes: string[] = [];
+    let contentLength = 0;
+
+    for await (const event of client.chat.streamEvents({
+      messages: [{ role: "user", content: "Reply with the word pong." }],
+      maxTokens: 16,
+    })) {
+      eventTypes.push(event.type);
+      if (event.type === "delta") contentLength += event.content?.length ?? 0;
+    }
+
+    expect(contentLength).toBeGreaterThan(0);
+    expect(eventTypes).toContain("finish");
+    expect(eventTypes).toContain("usage");
+    expect(eventTypes.at(-1)).toBe("done");
+  });
+
   it("image smoke returns url", async () => {
     const client = new AgnesClient();
 

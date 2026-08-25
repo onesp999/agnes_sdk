@@ -1,37 +1,85 @@
-# Agnes AI 本地聊天 Demo
+# Agnes Studio
 
-这是一个完全在本机运行的前后端 Demo，不需要 Sites 或其他托管服务。
+Agnes Studio 是一个本地优先的多模态 AI 产品示例：同一套 React 界面支持流式 Chat、Image 生成和异步 Video 任务，并用真实产品需求反向验证 `@agnes-ai/sdk` 的流式解析、取消和错误边界。
 
-## 结构
+它不是需要部署的公开服务。浏览器只访问本机 Express Backend；`AGNES_API_KEY` 始终留在 Backend 环境中。
+
+## 能力
+
+- 流式 Chat：增量渲染、停止、重试、重新生成、编辑并重发。
+- Image：尺寸、URL / Base64、参考图、预览、下载和复用提示词。
+- Video：创建任务、自动轮询、状态恢复、失败重试和完成后播放。
+- 安全 Markdown：标题、列表、强调、代码块和复制，不渲染原始 HTML。
+- 本地对话：IndexedDB 保存对话、消息、媒体和可恢复的视频任务。
+- 产品设置：普通模式只显示常用参数；Developer Mode 才显示自定义模型与 Advanced JSON。
+- 两种运行模式：无 Key 的 Showcase Mode 与有 Key 的 Real Agnes Mode。
+
+## Architecture
 
 ```text
-frontend/   Vite + React 聊天界面（开发端口 5174）
-backend/    Express + Agnes TypeScript SDK（端口 3101）
+Browser (React + IndexedDB)
+  └─ same-origin /api requests
+       └─ Express Backend
+            ├─ Showcase Mode: deterministic local mocks
+            └─ Real Agnes Mode: @agnes-ai/sdk → Agnes API
 ```
 
-原 SDK 源码保持不变。后端通过本地依赖 `../packages/javascript` 使用已经构建的 SDK。
+Frontend 只处理产品状态和 Backend 已归一化的 NDJSON 事件，不解析 Agnes SSE；Backend 负责输入校验、安全错误、流式桥接和断连取消。SDK 提供 `chat.streamEvents()` 的缓冲 SSE parser，同时保留原 `chat.stream()` raw stream 兼容接口。
 
-## 直接启动
+主要目录：
+
+```text
+backend/                 Express 入口、验证、Mock 与 SDK bridge
+frontend/src/components UI 组件
+frontend/src/features/  conversations、settings、media 领域逻辑
+frontend/src/services/  Chat NDJSON 与 Video polling API
+frontend/src/storage/   IndexedDB conversations 与 localStorage preferences
+frontend/src/types/     持久化数据和设置类型
+```
+
+## Quick Start
+
+要求 Node.js `>=18` 与 npm：
 
 ```powershell
+cd demo-chat-app
 npm install --ignore-scripts
 npm run dev
 ```
 
-然后打开：
+打开 [http://localhost:5174](http://localhost:5174)。默认 Backend 端口为 `3101`，Vite 会把 `/api/*` 和 `/health` 代理到本地 Backend。
 
-- 前端：http://localhost:5174
-- 后端状态：http://localhost:3101/health
+也可在 `demo-chat-app` 目录运行：
 
-`npm run dev` 会同时启动前端和后端。前端通过 Vite 代理访问本地后端，浏览器不会读取 API Key。
+```powershell
+.\restart.ps1
+```
 
-## 使用真实 Agnes API
+脚本只管理自己记录的本地进程树，并等待 Frontend 与 Backend 就绪。
+
+## Showcase Mode（无 API Key）
+
+没有配置 `AGNES_API_KEY` 时，应用正常启动并显示 `Showcase 演示模式`：
+
+- Chat 返回本地流式 Mock；
+- Image 返回本地内联 SVG；
+- Video 模拟 `queued → completed` 任务状态，不生成真实视频；
+- 不会访问真实 Agnes API，也不会产生 API 用量。
+
+若机器上已有 `backend/.env`，可为当前 PowerShell 会话显式覆盖为空值后启动：
+
+```powershell
+$env:AGNES_API_KEY = ''
+npm run dev
+```
+
+## Real Agnes Mode（有 API Key）
 
 ```powershell
 Copy-Item backend/.env.example backend/.env
 ```
 
-编辑 `backend/.env`：
+编辑未跟踪的 `backend/.env`：
 
 ```env
 AGNES_API_KEY=YOUR_API_KEY
@@ -39,65 +87,49 @@ AGNES_BASE_URL=https://apihub.agnes-ai.com
 PORT=3101
 ```
 
-未配置 `AGNES_API_KEY` 时，后端自动返回本地模拟回复。
+重启后状态显示 `Real Agnes 已连接`，Chat / Image / Video 通过 Backend 使用真实 SDK。Key 不会进入前端 bundle、IndexedDB、localStorage 或浏览器请求体。
 
-## 配置模型请求
+> 不要把带真实 Key 且没有额外鉴权的 Backend 暴露到公网；本项目的交付边界是本机开发与作品展示。
 
-点击聊天页顶部的模型名称可以打开请求参数面板。每次请求都可以配置：
+## Product Settings 与 Developer Mode
 
-- 模型名称、System Prompt
-- `temperature`、`topP`、`maxTokens`
-- 高级 JSON 参数，例如 `tools`、`toolChoice`、`thinking`、`chatTemplateKwargs`，以及 SDK 支持的扩展字段
+点击顶部模型名称打开设置：
 
-模型预设按类型分组，也可以直接输入自定义模型名称：
+- Chat：模型、System Prompt、Temperature、Top P、Max tokens。
+- Image：模型、尺寸、输出格式、参考图片 URL。
+- Video：模型、用户可理解的比例与时长；应用映射为 SDK 的宽高、帧率与帧数。
 
-- 文本：`agnes-2.0-flash`、`agnes-2.5-flash`、`agnes-2.5-pro-alpha`、`agnes-2.5-pro`
-- 图像：`agnes-image-2.0-flash`、`agnes-image-2.1-flash`
-- 视频：`agnes-video-v2.0`、`agnes-video-2.5`、`agnes-video-2.5-flash`
+Developer Mode 默认关闭。开启后可使用 custom model、`tools`、`toolChoice`、`thinking`、`chatTemplateKwargs` 与其他 Advanced JSON 扩展字段。应用保留 `messages`、`prompt`、`stream`，并拒绝 `apiKey`、`Authorization`、`headers`、`signal` 等敏感或传输字段。
 
-前端会根据模型名称自动选择本地接口：
+普通 preferences 和 Developer Mode 开关写入 localStorage；Advanced JSON 不持久化。对话与媒体元数据写入 IndexedDB，浏览器不保存服务器 secret。
 
-- 文本模型：`POST /api/chat`
-- 图像模型：`POST /api/images`
-- 视频模型：`POST /api/videos`，创建任务后通过 `GET /api/videos/:videoId` 刷新状态
-
-图像结果支持 URL 和 Base64 预览；视频任务完成并返回地址后会显示播放器。
-
-留空的数值参数会使用模型或服务端默认值。高级 JSON 中的 `messages`、`prompt` 和 `stream` 不可覆盖，因为请求内容和响应模式由 Demo 管理。
-
-`POST /api/chat` 保持兼容原有的 `messages` 请求，并新增可选的 `parameters` 对象：
-
-```json
-{
-  "messages": [{ "role": "user", "content": "你好" }],
-  "parameters": {
-    "model": "agnes-2.0-flash",
-    "temperature": 0.7,
-    "topP": 0.9,
-    "maxTokens": 1024
-  }
-}
-```
-
-## 构建与单服务运行
+## Build 与 Test
 
 ```powershell
+npm test
 npm run build
 npm start
 ```
 
-构建后 Express 会在 `http://localhost:3101` 同时提供前端静态页面和本地 `/api/*` 代理接口。
+`npm start` 使用生产构建，由 Express 同时提供静态页面和 `/api/*`。默认测试全部使用 Mock / injected client，不需要真实 Key，也不调用真实 Agnes API。
 
-也可以使用根目录的重启脚本：
-
-```powershell
-.\restart.ps1
-```
-
-脚本会停止它上一次启动的 Demo 进程树，在后台重新运行 `npm run dev`，并等待前后端就绪。
-
-## 测试
+TypeScript SDK 可独立验证：
 
 ```powershell
+cd ..\packages\javascript
 npm test
+npm run build
 ```
+
+真实 API smoke test 是显式 opt-in 的单独验收层，参见 SDK 测试说明；不要把它与默认离线测试混在一起运行。
+
+## SDK 与 Product 的关系
+
+Studio 促成了 SDK 的增量 `streamEvents()` 契约：处理分片 / 合并 SSE、`[DONE]`、usage、协议错误、AbortSignal 与覆盖完整流生命周期的 timeout。产品层仍只依赖 Backend 的安全 NDJSON contract，因此 Agnes-specific transport 不会泄漏到 React 组件。
+
+## 已知限制
+
+- Video Showcase 只演示任务生命周期，不生成可播放文件；播放器需要 Real Agnes 返回视频 URL。
+- 本地对话没有跨浏览器或云同步。
+- 当前没有用户鉴权、配额与多租户隔离，因此不适合作为公开 Key proxy 部署。
+- Markdown 禁止原始 HTML；这是有意的安全边界。

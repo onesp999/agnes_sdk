@@ -3,6 +3,10 @@ import { AgnesConfigurationError } from "./errors.js";
 
 export type AgnesFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
+export interface AgnesRequestOptions {
+  signal?: AbortSignal;
+}
+
 export interface AgnesClientConfig {
   apiKey?: string;
   baseUrl?: string;

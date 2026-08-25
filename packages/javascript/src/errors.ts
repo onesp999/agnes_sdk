@@ -36,4 +36,8 @@ export class AgnesAPIServerError extends AgnesAPIError {}
 
 export class AgnesAPITimeoutError extends AgnesAPIError {}
 
+export class AgnesAPIAbortError extends AgnesAPIError {}
+
+export class AgnesAPIStreamProtocolError extends AgnesAPIError {}
+
 export class AgnesVideoTaskFailedError extends AgnesAPIError {}
