@@ -14,10 +14,28 @@ build/
 *.egg-info/
 
 node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 .turbo/
 .vite/
+.next/
+.vinext/
+.wrangler/
 coverage/
 *.tsbuildinfo
+
+# Local runtime files
+work/
+logs/
+.demo-dev.pid.json
+
+# Local certificates
+*.pem
 
 .DS_Store
 Thumbs.db
