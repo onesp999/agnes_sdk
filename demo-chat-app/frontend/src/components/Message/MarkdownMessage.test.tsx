@@ -106,6 +106,21 @@ describe("MarkdownMessage", () => {
     await act(async () => root.unmount());
   });
 
+  it("distinguishes tall inline operators from a simple inline fraction", async () => {
+    const root = createRoot(container);
+    await act(async () => root.render(<MarkdownMessage content={[
+      "比例为 $\\frac{a+b}{c+d}$。",
+      "",
+      "记忆连续性为 $C(t)=\\frac{\\int_{t_0}^{t}|M'(x)|dx}{\\int_{t_0}^{t_0+T}|M'(x)|dx}$。",
+      "",
+      "社会信任函数为 $T=\\frac{1}{N^2}\\sum_{i,j}\\frac{1}{1+e^{-\\lambda(A_{ij}^{new}-\\theta)}}$。",
+    ].join("\n")} />));
+
+    expect(container.querySelectorAll(":not(.katex-display) > .katex:has(.mfrac)")).toHaveLength(3);
+    expect(container.querySelectorAll(":not(.katex-display) > .katex:has(.mop)")).toHaveLength(2);
+    await act(async () => root.unmount());
+  });
+
   it("keeps the message readable when one math expression is invalid", async () => {
     const root = createRoot(container);
     await act(async () => root.render(<MarkdownMessage content={
