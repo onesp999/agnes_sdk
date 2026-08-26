@@ -101,6 +101,42 @@ describe("conversation UI persistence", () => {
 
     expect(second.textContent).toContain("Persistent hello");
     expect(second.querySelector(".conversation-row.active")?.textContent).toContain("Persistent hello");
+    expect(second.querySelector(".thinking-block")).toBeNull();
+  });
+
+  it("accumulates mixed reasoning deltas, persists them collapsed, and copies only the answer", async () => {
+    chatResponse = () => new Response([
+      '{"type":"delta","choiceIndex":0,"reasoningContent":"First step. "}',
+      '{"type":"delta","choiceIndex":0,"reasoningContent":"Second step.","content":"Visible "}',
+      '{"type":"delta","choiceIndex":0,"content":"answer"}',
+      '{"type":"done"}',
+      "",
+    ].join("\n"), { status: 200, headers: { "Content-Type": "application/x-ndjson" } });
+    const first = await renderApp();
+    await waitFor(() => !first.querySelector<HTMLButtonElement>(".new-chat")?.disabled);
+
+    await submitText(first, "Reasoning question");
+    await waitFor(() => first.textContent?.includes("Visible answer") === true);
+
+    let toggle = first.querySelector<HTMLButtonElement>(".thinking-toggle")!;
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    await act(async () => toggle.click());
+    expect(first.textContent).toContain("First step. Second step.");
+    const assistantCopy = [...first.querySelectorAll<HTMLButtonElement>(".assistant .message-actions button")]
+      .find((button) => button.textContent === "复制")!;
+    await act(async () => assistantCopy.click());
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Visible answer");
+
+    const firstRoot = roots.shift()!;
+    await act(async () => firstRoot.unmount());
+    const second = await renderApp();
+    await waitFor(() => second.textContent?.includes("Visible answer") === true);
+
+    toggle = second.querySelector<HTMLButtonElement>(".thinking-toggle")!;
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(second.textContent).not.toContain("First step. Second step.");
+    await act(async () => toggle.click());
+    expect(second.textContent).toContain("First step. Second step.");
   });
 
   it("switches Chat, Image, and Video capabilities from the composer", async () => {
@@ -177,6 +213,48 @@ describe("conversation UI persistence", () => {
     expect(streamCalls).toHaveLength(1);
   });
 
+  it("preserves reasoning when generation is cancelled before answer content", async () => {
+    chatResponse = (init) => new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(
+          '{"type":"delta","choiceIndex":0,"reasoningContent":"Reasoning before stop"}\n',
+        ));
+        init?.signal?.addEventListener("abort", () => {
+          controller.error(new DOMException("Aborted", "AbortError"));
+        }, { once: true });
+      },
+    }), { status: 200, headers: { "Content-Type": "application/x-ndjson" } });
+    const container = await renderApp();
+    await waitFor(() => !container.querySelector<HTMLButtonElement>(".new-chat")?.disabled);
+
+    await submitText(container, "Cancel reasoning");
+    await waitFor(() => container.textContent?.includes("Reasoning before stop") === true);
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="停止生成"]')!.click());
+    await waitFor(() => container.textContent?.includes("重试") === true);
+
+    expect(container.textContent).toContain("Reasoning before stop");
+    expect(container.textContent).toContain("生成已停止。");
+    expect(container.querySelector(".thinking-block")).not.toBeNull();
+  });
+
+  it("preserves reasoning when the stream fails", async () => {
+    chatResponse = () => new Response([
+      '{"type":"delta","choiceIndex":0,"reasoningContent":"Reasoning before failure"}',
+      '{"type":"error","error":{"type":"AgnesAPIError","message":"Temporary failure"}}',
+      "",
+    ].join("\n"), { status: 200, headers: { "Content-Type": "application/x-ndjson" } });
+    const container = await renderApp();
+    await waitFor(() => !container.querySelector<HTMLButtonElement>(".new-chat")?.disabled);
+
+    await submitText(container, "Failure reasoning");
+    await waitFor(() => container.textContent?.includes("Temporary failure") === true);
+    const toggle = container.querySelector<HTMLButtonElement>(".thinking-toggle")!;
+    if (toggle.getAttribute("aria-expanded") === "false") await act(async () => toggle.click());
+
+    expect(container.textContent).toContain("Reasoning before failure");
+    expect(container.textContent).toContain("Temporary failure");
+  });
+
   it("retries a failed turn without duplicating the user message", async () => {
     let attempt = 0;
     chatResponse = () => {
@@ -205,18 +283,21 @@ describe("conversation UI persistence", () => {
 
   it("regenerates and edit-resends by replacing the existing branch", async () => {
     const responses = ["First answer", "Regenerated answer", "Edited answer"];
+    let responseIndex = 0;
     chatResponse = () => new Response(
-      `{"type":"delta","choiceIndex":0,"content":${JSON.stringify(responses.shift())}}\n{"type":"done"}\n`,
+      `${responseIndex++ === 0 ? '{"type":"delta","choiceIndex":0,"reasoningContent":"Old reasoning"}\n' : ""}{"type":"delta","choiceIndex":0,"content":${JSON.stringify(responses.shift())}}\n{"type":"done"}\n`,
       { status: 200, headers: { "Content-Type": "application/x-ndjson" } },
     );
     const container = await renderApp();
     await waitFor(() => !container.querySelector<HTMLButtonElement>(".new-chat")?.disabled);
     await submitText(container, "Original question");
     await waitFor(() => container.textContent?.includes("First answer") === true);
+    expect(container.querySelector(".thinking-block")).not.toBeNull();
 
     await act(async () => findButton(container, "重新生成").click());
     await waitFor(() => container.textContent?.includes("Regenerated answer") === true);
     expect(container.textContent).not.toContain("First answer");
+    expect(container.querySelector(".thinking-block")).toBeNull();
 
     vi.spyOn(window, "prompt").mockReturnValue("Edited question");
     await act(async () => findButton(container, "编辑并重发").click());

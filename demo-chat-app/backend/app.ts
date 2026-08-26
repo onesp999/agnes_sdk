@@ -305,6 +305,17 @@ async function* mockChatStream(
 ): AsyncIterable<ChatStreamEvent> {
   const completion = mockCompletion(messages, parameters);
   const content = String(((completion.choices[0] as { message: { content: string } }).message.content));
+  const reasoningChunks = ["先识别问题目标。", "再整理关键信息。", "最后组织简洁回答。"];
+  for (const chunk of reasoningChunks) {
+    if (signal.aborted) return;
+    yield {
+      type: "delta",
+      choiceIndex: 0,
+      delta: { reasoning_content: chunk },
+      reasoningContent: chunk,
+    };
+    await delay(15);
+  }
   const chunks = content.match(/.{1,18}/gs) ?? [content];
   for (const chunk of chunks) {
     if (signal.aborted) return;

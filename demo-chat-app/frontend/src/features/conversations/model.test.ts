@@ -43,7 +43,7 @@ describe("conversation model", () => {
 
   it("renames and updates only the selected message", () => {
     const first = createMessage("user", "Question", { id: "one" });
-    const second = createMessage("assistant", "Answer", { id: "two" });
+    const second = { ...createMessage("assistant", "Answer", { id: "two" }), reasoningContent: "Internal notes" };
     const conversation = { ...createConversation(), messages: [first, second] };
     const renamed = renameConversation(conversation, "  Project notes  ");
     const updated = updateMessage(renamed, "two", (message) => ({
@@ -78,7 +78,7 @@ describe("conversation model", () => {
   it("restarts an assistant turn without duplicating the user message", () => {
     const messages = [
       createMessage("user", "First", { id: "u1" }),
-      createMessage("assistant", "Old answer", { id: "a1" }),
+      { ...createMessage("assistant", "Old answer", { id: "a1" }), reasoningContent: "Old reasoning" },
       createMessage("user", "Later branch", { id: "u2" }),
     ];
     const conversation = { ...createConversation(), messages };
@@ -87,7 +87,29 @@ describe("conversation model", () => {
 
     expect(restarted.messages.map((message) => message.id)).toEqual(["u1", "a1"]);
     expect(restarted.messages[1]).toMatchObject({ content: "", status: "pending" });
+    expect(restarted.messages[1]?.reasoningContent).toBeUndefined();
     expect(generationContext(restarted, "a1")).toEqual([{ role: "user", content: "First" }]);
+  });
+
+  it("keeps reasoning out of the next generation context", () => {
+    const conversation = {
+      ...createConversation(),
+      messages: [
+        createMessage("user", "First", { id: "u1" }),
+        {
+          ...createMessage("assistant", "Visible answer", { id: "a1" }),
+          reasoningContent: "Private reasoning",
+        },
+        createMessage("user", "Follow-up", { id: "u2" }),
+        createMessage("assistant", "", { id: "a2", status: "pending" }),
+      ],
+    };
+
+    expect(generationContext(conversation, "a2")).toEqual([
+      { role: "user", content: "First" },
+      { role: "assistant", content: "Visible answer" },
+      { role: "user", content: "Follow-up" },
+    ]);
   });
 
   it("edits a user message and removes the later branch", () => {

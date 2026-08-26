@@ -24,6 +24,32 @@ describe("conversation IndexedDB store", () => {
     store.close();
   });
 
+  it("persists optional reasoning and rejects non-string reasoning records", async () => {
+    const factory = new IDBFactory();
+    const store = await createConversationStore(factory);
+    const withReasoning = {
+      ...createConversation(new Date("2026-08-25T08:00:00.000Z"), "reasoning"),
+      messages: [{
+        ...createMessage("assistant", "Answer", { id: "a1" }),
+        reasoningContent: "Reasoning",
+      }],
+    };
+    const invalid = {
+      ...createConversation(new Date("2026-08-25T09:00:00.000Z"), "invalid"),
+      messages: [{
+        ...createMessage("assistant", "Answer", { id: "a2" }),
+        reasoningContent: 42,
+      }],
+    };
+
+    await store.put(withReasoning);
+    await putRaw(factory, invalid);
+
+    expect(await store.get("reasoning")).toEqual(withReasoning);
+    expect(await store.get("invalid")).toBeUndefined();
+    store.close();
+  });
+
   it("deletes only the requested conversation", async () => {
     const store = await createConversationStore(new IDBFactory());
     await store.put(createConversation(new Date("2026-08-25T08:00:00.000Z"), "keep"));

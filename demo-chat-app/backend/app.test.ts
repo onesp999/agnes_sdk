@@ -55,7 +55,12 @@ describe("local chat backend", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers["content-type"]).toContain("application/x-ndjson");
-    expect(events.some((event) => event.type === "delta")).toBe(true);
+    const reasoningIndexes = events
+      .map((event, index) => event.reasoningContent ? index : -1)
+      .filter((index) => index >= 0);
+    const firstContentIndex = events.findIndex((event) => Boolean(event.content));
+    expect(reasoningIndexes).toHaveLength(3);
+    expect(reasoningIndexes.every((index) => index < firstContentIndex)).toBe(true);
     expect(events.at(-1)).toEqual({ type: "done" });
   });
 
@@ -66,6 +71,12 @@ describe("local chat backend", () => {
         async create() { return { choices: [] }; },
         async *streamEvents(payload, options) {
           received = { payload, signal: options?.signal };
+          yield {
+            type: "delta",
+            choiceIndex: 0,
+            delta: { reasoning_content: "Plan" },
+            reasoningContent: "Plan",
+          };
           yield {
             type: "delta",
             choiceIndex: 0,
@@ -84,6 +95,7 @@ describe("local chat backend", () => {
     const events = parseNdjson(response.text);
 
     expect(events).toEqual([
+      { type: "delta", choiceIndex: 0, reasoningContent: "Plan" },
       { type: "delta", choiceIndex: 0, content: "Hello" },
       { type: "finish", choiceIndex: 0, finishReason: "stop" },
       { type: "usage", usage: { total_tokens: 3 } },

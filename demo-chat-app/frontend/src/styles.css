@@ -140,6 +140,15 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .message-body { min-width:0; }
 .assistant .message-body { max-width:780px; padding-top:1px; }
 .user .message-body { max-width:76%; padding:11px 15px; border-radius:18px 18px 5px 18px; background:var(--bg-app); }
+.thinking-block { max-width:100%; margin:0 0 12px; color:var(--text-secondary); font-size:13px; }
+.thinking-toggle { display:flex; align-items:center; gap:6px; padding:3px 0; border:0; background:transparent; color:var(--text-secondary); font:inherit; cursor:pointer; }
+.thinking-toggle:hover { color:var(--text-primary); }
+.thinking-toggle:focus-visible { border-radius:4px; outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent); outline-offset:2px; }
+.thinking-chevron { display:inline-block; color:var(--text-tertiary); font-size:17px; line-height:1; transform:rotate(0deg); transition:transform 140ms ease; }
+.thinking-block.is-expanded .thinking-chevron { transform:rotate(90deg); }
+.thinking-content { min-width:0; max-width:100%; margin-top:5px; padding:7px 0 7px 12px; border-left:2px solid var(--border-subtle); overflow:hidden; }
+.thinking-content .markdown-content { color:var(--text-secondary); font-size:13px; line-height:1.65; }
+.thinking-content .code-block,.thinking-content .table-scroll,.thinking-content .katex-display { max-width:100%; overflow-x:auto; }
 .avatar { width:30px; height:30px; border-radius:10px; font-size:11px; font-weight:750; box-shadow:0 4px 14px rgba(102,87,217,.12); }
 .message-identity { height:25px; display:flex; align-items:flex-start; gap:8px; }
 .message-identity span { color:var(--text-secondary); font-size:11px; font-weight:700; }

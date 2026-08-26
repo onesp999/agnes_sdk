@@ -249,13 +249,19 @@ export function App() {
       await streamChat({ messages, parameters }, {
         signal: controller.signal,
         onEvent(event) {
-          if (event.type !== "delta" || !event.content) return;
+          if (event.type !== "delta") return;
+          const contentDelta = event.content ?? "";
+          const reasoningDelta = event.reasoningContent ?? "";
+          if (!contentDelta && !reasoningDelta) return;
           conversationState.update(conversation.id, (current) => updateMessage(
             current,
             assistantId,
             (message) => ({
               ...message,
-              content: `${message.content}${event.content}`,
+              content: `${message.content}${contentDelta}`,
+              ...((reasoningDelta || message.reasoningContent) ? {
+                reasoningContent: `${message.reasoningContent ?? ""}${reasoningDelta}`,
+              } : {}),
               status: "streaming",
             }),
           ));

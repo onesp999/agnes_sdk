@@ -38,6 +38,22 @@ describe("browser chat stream", () => {
     });
   });
 
+  it("preserves reasoning and content from the same delta", async () => {
+    const body = byteStream([new TextEncoder().encode(
+      '{"type":"delta","choiceIndex":0,"reasoningContent":"Plan","content":"Answer"}\n',
+    )]);
+    const events = [];
+
+    for await (const event of parseNdjsonStream(body)) events.push(event);
+
+    expect(events).toEqual([{
+      type: "delta",
+      choiceIndex: 0,
+      reasoningContent: "Plan",
+      content: "Answer",
+    }]);
+  });
+
   it("rejects malformed NDJSON without echoing the payload", async () => {
     const body = byteStream([new TextEncoder().encode("not-json-secret\n")]);
     const consume = async () => {

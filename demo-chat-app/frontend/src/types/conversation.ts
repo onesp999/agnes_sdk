@@ -9,6 +9,7 @@ export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  reasoningContent?: string;
   status: MessageStatus;
   model?: string;
   createdAt: string;

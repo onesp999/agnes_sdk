@@ -3,6 +3,7 @@ import { getModelKind } from "../../features/settings/model.js";
 import type { Message } from "../../types/conversation.js";
 import { MarkdownMessage } from "./MarkdownMessage.js";
 import { StudioResultSurface } from "./StudioResultSurface.js";
+import { ThinkingBlock } from "./ThinkingBlock.js";
 
 type MessageItemProps = {
   message: Message;
@@ -43,6 +44,13 @@ export function MessageItem({
     {message.role === "assistant" && <div className="avatar" aria-hidden="true">A</div>}
     <div className="message-body">
       {message.role === "assistant" && <div className="message-identity"><span>Agnes</span>{generating && <small>正在生成</small>}</div>}
+      {!studioMessage && message.role === "assistant" && message.reasoningContent && <ThinkingBlock
+        reasoningContent={message.reasoningContent}
+        answerStarted={Boolean(message.content)
+          && message.status !== "failed"
+          && message.status !== "cancelled"}
+        generating={generating}
+      />}
       {studioMessage
         ? <StudioResultSurface kind={kind === "image" ? "image" : "video"} message={message} developerMode={developerMode} />
         : message.content && (message.role === "assistant"
@@ -50,7 +58,7 @@ export function MessageItem({
         : <p>{message.content}</p>)}
       {!studioMessage && generating && (message.content
         ? <span className="streaming-cursor" aria-label="正在生成" />
-        : <div className="message-pending" aria-label="正在生成"><span />准备回复</div>)}
+        : !message.reasoningContent && <div className="message-pending" aria-label="正在生成"><span />准备回复</div>)}
       <div className="message-actions" aria-label={message.role === "assistant" ? "回复操作" : "消息操作"}>
         {message.content && <button type="button" onClick={() => onCopy(message)} title="复制"><Icon name="copy" />{copied ? "已复制" : "复制"}</button>}
         {message.role === "user" && kind === "chat" && <button type="button" disabled={pending} onClick={() => onEdit(message)} title="编辑并重发"><Icon name="edit" />编辑并重发</button>}

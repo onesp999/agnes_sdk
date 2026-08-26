@@ -170,7 +170,7 @@ function isMessage(value: unknown): value is Message {
     || typeof value.media.url !== "string")) {
     return false;
   }
-  return ["model", "videoId", "videoModel", "videoStatus"]
+  return ["model", "reasoningContent", "videoId", "videoModel", "videoStatus"]
     .every((key) => value[key] === undefined || typeof value[key] === "string");
 }
 
