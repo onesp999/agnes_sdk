@@ -63,6 +63,15 @@ describe("conversation UI persistence", () => {
     vi.unstubAllGlobals();
   });
 
+  it("keeps the attachment control disabled with its unavailable semantics", async () => {
+    const container = await renderApp();
+    const attachment = container.querySelector<HTMLButtonElement>('[aria-label="添加附件（暂不可用）"]');
+
+    expect(attachment?.disabled).toBe(true);
+    expect(attachment?.title).toBe("附件能力暂未开放");
+    expect(attachment?.querySelector("svg")).not.toBeNull();
+  });
+
   it("restores the selected conversation and messages after remount", async () => {
     const first = await renderApp();
     await waitFor(() => !first.querySelector<HTMLButtonElement>(".new-chat")?.disabled);

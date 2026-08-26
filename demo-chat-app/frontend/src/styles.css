@@ -156,9 +156,14 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .markdown-content li + li { margin-top:.25em; }
 .markdown-content a { color:var(--accent-hover); text-decoration-thickness:1px; text-underline-offset:3px; }
 .markdown-content hr { margin:1.5em 0; border:0; border-top:1px solid var(--border-subtle); }
-.markdown-content table { width:100%; display:block; margin:1em 0; overflow-x:auto; border-collapse:collapse; font-size:13px; }
-.markdown-content th,.markdown-content td { min-width:120px; padding:8px 10px; border:1px solid var(--border-subtle); text-align:left; }
-.markdown-content th { background:var(--bg-app); font-weight:700; }
+.table-scroll { max-width:100%; margin:1em 0; overflow-x:auto; }
+.markdown-content table { width:max-content; min-width:100%; border-collapse:collapse; font-size:13px; }
+.markdown-content th,.markdown-content td { min-width:120px; max-width:320px; padding:10px 12px; border:1px solid var(--border-subtle); text-align:left; vertical-align:top; white-space:normal; }
+.markdown-content th { background:var(--bg-app); font-weight:650; }
+.markdown-content .katex { font-size:1em; }
+.markdown-content .katex-display { max-width:100%; margin:1.1em 0; padding:.12em 0; overflow-x:auto; overflow-y:hidden; }
+.markdown-content .katex-display > .katex { display:inline-block; min-width:max-content; }
+.markdown-content .katex-error { color:var(--danger); overflow-wrap:anywhere; }
 .markdown-content code { padding:.12em .34em; border-radius:5px; background:#efefec; font-family:"SFMono-Regular",Consolas,monospace; font-size:.88em; }
 .code-block { margin:15px 0; overflow:hidden; border:1px solid #34333a; border-radius:13px; background:#222126; }
 .code-block-header { min-height:36px; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 9px 0 13px; border-bottom:1px solid rgba(255,255,255,.08); color:#a9a7b1; }

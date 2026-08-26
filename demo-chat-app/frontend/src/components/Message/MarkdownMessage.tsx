@@ -6,6 +6,10 @@ import {
   type ReactNode,
 } from "react";
 import ReactMarkdown from "react-markdown";
+import rehypeKatex from "rehype-katex";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import "katex/dist/katex.min.css";
 import { Icon } from "../Icon/Icon.js";
 import { copyText } from "../../utils/clipboard.js";
 
@@ -13,12 +17,19 @@ export function MarkdownMessage({ content }: { content: string }) {
   return <div className="markdown-content">
     <ReactMarkdown
       skipHtml
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[rehypeKatex]}
       components={{
         a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer noopener" />,
         pre: CodeBlock,
+        table: MarkdownTable,
       }}
     >{content}</ReactMarkdown>
   </div>;
+}
+
+function MarkdownTable({ node: _node, ...props }: ComponentPropsWithoutRef<"table"> & { node?: unknown }) {
+  return <div className="table-scroll"><table {...props} /></div>;
 }
 
 function CodeBlock({ children, ...props }: ComponentPropsWithoutRef<"pre">) {

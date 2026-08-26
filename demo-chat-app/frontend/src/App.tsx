@@ -613,7 +613,7 @@ export function App() {
         <div className="composer-wrap"><form className={`composer composer-${modelKind}`} onSubmit={submit}>
           <textarea ref={inputRef} value={draft} onChange={(event) => { setDraft(event.target.value); resizeComposer(event.target); }} onKeyDown={keyDown} placeholder={composerPlaceholder(modelKind)} aria-label="发送消息" rows={1} disabled={!conversationState.ready} />
           <div className="composer-controls">
-            <button type="button" className="icon-button composer-add" aria-label="添加附件（暂不可用）" title="附件能力暂未开放" disabled><Icon name="new-chat" /></button>
+            <button type="button" className="icon-button composer-add" aria-label="添加附件（暂不可用）" title="附件能力暂未开放" disabled><Icon name="paperclip" /></button>
             <div className="mode-switch" role="group" aria-label="创作模式">
               <button type="button" aria-pressed={modelKind === "chat"} onClick={() => switchMode("chat")}><Icon name="sparkles" />Chat</button>
               <button type="button" aria-pressed={modelKind === "image"} onClick={() => switchMode("image")}><Icon name="image" />Image</button>

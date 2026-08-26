@@ -68,4 +68,53 @@ describe("MarkdownMessage", () => {
     expect(button.textContent).toBe("已复制");
     await act(async () => root.unmount());
   });
+
+  it("renders GFM tables with Markdown inside cells", async () => {
+    const root = createRoot(container);
+    await act(async () => root.render(<MarkdownMessage content={[
+      "| 类型 | 内容 |",
+      "| --- | --- |",
+      "| 强调 | **重要** |",
+      "| 代码 | `npm test` |",
+    ].join("\n")} />));
+
+    expect(container.querySelector(".table-scroll > table")).not.toBeNull();
+    expect(container.querySelector("thead th")?.textContent).toBe("类型");
+    expect(container.querySelector("tbody strong")?.textContent).toBe("重要");
+    expect(container.querySelector("tbody code")?.textContent).toBe("npm test");
+    expect(container.textContent).not.toContain("| --- | --- |");
+    await act(async () => root.unmount());
+  });
+
+  it("renders inline, display, and multiple math expressions", async () => {
+    const root = createRoot(container);
+    await act(async () => root.render(<MarkdownMessage content={[
+      "不确定性关系为 $\\Delta x \\Delta p \\geq \\hbar/2$，这是量子力学中的重要关系。",
+      "",
+      "$$",
+      "\\Delta x \\cdot \\Delta p \\geq \\frac{\\hbar}{2}",
+      "$$",
+      "",
+      "另一个公式是 $E = mc^2$。",
+    ].join("\n")} />));
+
+    expect(container.textContent).toContain("不确定性关系为");
+    expect(container.textContent).toContain("这是量子力学中的重要关系");
+    expect(container.querySelectorAll(".katex")).toHaveLength(3);
+    expect(container.querySelector(".katex-display")).not.toBeNull();
+    expect(container.textContent).not.toContain("$$");
+    await act(async () => root.unmount());
+  });
+
+  it("keeps the message readable when one math expression is invalid", async () => {
+    const root = createRoot(container);
+    await act(async () => root.render(<MarkdownMessage content={
+      "前文 $\\frac{$ 后文仍然可读。"
+    } />));
+
+    expect(container.textContent).toContain("前文");
+    expect(container.textContent).toContain("后文仍然可读");
+    expect(container.querySelector(".katex-error")).not.toBeNull();
+    await act(async () => root.unmount());
+  });
 });
