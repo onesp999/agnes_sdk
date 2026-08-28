@@ -6,6 +6,7 @@ import {
   editUserAndCreateAssistant,
   generationContext,
   groupConversations,
+  isReusableNewConversation,
   markInterruptedMessages,
   renameConversation,
   restartAssistantTurn,
@@ -24,6 +25,19 @@ describe("conversation model", () => {
       updatedAt: "2026-08-25T08:00:00.000Z",
       messages: [],
     });
+  });
+
+  it("recognizes only untouched default empty conversations as reusable", () => {
+    const pristine = createConversation();
+    const renamed = { ...pristine, title: "待处理的问题" };
+    const populated = {
+      ...pristine,
+      messages: [createMessage("user", "Question", { id: "message-1" })],
+    };
+
+    expect(isReusableNewConversation(pristine)).toBe(true);
+    expect(isReusableNewConversation(renamed)).toBe(false);
+    expect(isReusableNewConversation(populated)).toBe(false);
   });
 
   it("uses the first user message as the title and updates timestamps", () => {

@@ -21,6 +21,10 @@ export function createConversation(
   };
 }
 
+export function isReusableNewConversation(conversation: Conversation): boolean {
+  return conversation.title === NEW_CONVERSATION_TITLE && conversation.messages.length === 0;
+}
+
 export function createMessage(
   role: Message["role"],
   content: string,

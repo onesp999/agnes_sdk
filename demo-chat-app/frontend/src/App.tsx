@@ -70,6 +70,10 @@ export function App() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    if (inputRef.current) resizeComposer(inputRef.current);
+  }, [draft]);
+
+  useEffect(() => {
     if (window.matchMedia("(max-width: 900px)").matches) setSidebarOpen(false);
     fetch("/health")
       .then((response) => response.json())
@@ -617,7 +621,7 @@ export function App() {
         </div>}
 
         <div className="composer-wrap"><form className={`composer composer-${modelKind}`} onSubmit={submit}>
-          <textarea ref={inputRef} value={draft} onChange={(event) => { setDraft(event.target.value); resizeComposer(event.target); }} onKeyDown={keyDown} placeholder={composerPlaceholder(modelKind)} aria-label="发送消息" rows={1} disabled={!conversationState.ready} />
+          <textarea ref={inputRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={keyDown} placeholder={composerPlaceholder(modelKind)} aria-label="发送消息" rows={1} disabled={!conversationState.ready} />
           <div className="composer-controls">
             <button type="button" className="icon-button composer-add" aria-label="添加附件（暂不可用）" title="附件能力暂未开放" disabled><Icon name="paperclip" /></button>
             <div className="mode-switch" role="group" aria-label="创作模式">

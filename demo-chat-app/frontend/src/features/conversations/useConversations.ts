@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createConversation,
+  isReusableNewConversation,
   markInterruptedMessages,
   renameConversation,
   sortConversations,
@@ -65,6 +66,12 @@ export function useConversations() {
   }, [commit]);
 
   const createNew = useCallback(() => {
+    const reusable = conversationsRef.current.find(isReusableNewConversation);
+    if (reusable) {
+      setActiveId(reusable.id);
+      void storeRef.current?.setCurrentId(reusable.id);
+      return reusable;
+    }
     const conversation = createConversation();
     commit([conversation, ...conversationsRef.current]);
     setActiveId(conversation.id);

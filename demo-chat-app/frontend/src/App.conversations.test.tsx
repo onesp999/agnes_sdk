@@ -72,6 +72,105 @@ describe("conversation UI persistence", () => {
     expect(attachment?.querySelector("svg")).not.toBeNull();
   });
 
+  it("resizes the composer from draft changes and resets it after send", async () => {
+    const container = await renderApp();
+    await waitFor(() => !container.querySelector<HTMLButtonElement>(".new-chat")?.disabled);
+    const textarea = container.querySelector<HTMLTextAreaElement>(".composer textarea")!;
+    Object.defineProperty(textarea, "scrollHeight", {
+      configurable: true,
+      get: () => textarea.value ? 260 : 38,
+    });
+    const longPrompt = "Line one\n".repeat(40);
+    await act(async () => findButton(container, "Image").click());
+
+    await act(async () => {
+      setTextareaValue(textarea, longPrompt);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(textarea.style.height).toBe("208px");
+
+    await act(async () => {
+      container.querySelector<HTMLFormElement>(".composer")!.dispatchEvent(new Event("submit", {
+        bubbles: true,
+        cancelable: true,
+      }));
+    });
+    await waitFor(() => textarea.value === "" && textarea.style.height === "38px");
+    await waitFor(() => [...container.querySelectorAll("button")]
+      .some((button) => button.textContent === "复用提示词"));
+
+    await act(async () => findButton(container, "复用提示词").click());
+    expect(textarea.value).toBe(longPrompt.trim());
+    expect(textarea.style.height).toBe("208px");
+    await act(async () => findButton(container, "Chat").click());
+  });
+
+  it("reuses a pristine conversation across repeated New Chat clicks and persistence", async () => {
+    const first = await renderApp();
+    await waitFor(() => !first.querySelector<HTMLButtonElement>(".new-chat")?.disabled);
+
+    await act(async () => first.querySelector<HTMLButtonElement>(".new-chat")!.click());
+    await act(async () => first.querySelector<HTMLButtonElement>(".new-chat")!.click());
+    expect(first.querySelectorAll(".conversation-row")).toHaveLength(1);
+
+    const firstRoot = roots.shift()!;
+    await act(async () => firstRoot.unmount());
+    const second = await renderApp();
+    await waitFor(() => !second.querySelector<HTMLButtonElement>(".new-chat")?.disabled);
+    expect(second.querySelectorAll(".conversation-row")).toHaveLength(1);
+  });
+
+  it("selects an existing pristine conversation instead of creating another", async () => {
+    const container = await renderApp();
+    await waitFor(() => !container.querySelector<HTMLButtonElement>(".new-chat")?.disabled);
+    await submitText(container, "Conversation with content");
+    await waitFor(() => container.textContent?.includes("Persisted answer") === true);
+
+    await act(async () => container.querySelector<HTMLButtonElement>(".new-chat")!.click());
+    expect(container.querySelectorAll(".conversation-row")).toHaveLength(2);
+    const textarea = container.querySelector<HTMLTextAreaElement>(".composer textarea")!;
+    Object.defineProperty(textarea, "scrollHeight", {
+      configurable: true,
+      get: () => textarea.value ? 260 : 38,
+    });
+    await act(async () => {
+      setTextareaValue(textarea, "Long draft\n".repeat(30));
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(textarea.style.height).toBe("208px");
+    const populated = [...container.querySelectorAll<HTMLButtonElement>(".conversation-select")]
+      .find((button) => button.textContent?.includes("Conversation with content"))!;
+    await act(async () => populated.click());
+    expect(container.querySelector(".conversation-row.active")?.textContent).toContain("Conversation with content");
+    expect(textarea.value).toBe("");
+    expect(textarea.style.height).toBe("38px");
+
+    await act(async () => {
+      setTextareaValue(textarea, "Another long draft\n".repeat(30));
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => container.querySelector<HTMLButtonElement>(".new-chat")!.click());
+    expect(container.querySelectorAll(".conversation-row")).toHaveLength(2);
+    expect(container.querySelector(".conversation-row.active")?.textContent).toContain("新对话");
+    expect(textarea.value).toBe("");
+    expect(textarea.style.height).toBe("38px");
+    expect(document.activeElement).toBe(textarea);
+  });
+
+  it("does not reuse an empty conversation after it is renamed", async () => {
+    const container = await renderApp();
+    await waitFor(() => !container.querySelector<HTMLButtonElement>(".new-chat")?.disabled);
+    vi.spyOn(window, "prompt").mockReturnValue("待处理的问题");
+
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label^="重命名 "]')!.click());
+    await act(async () => container.querySelector<HTMLButtonElement>(".new-chat")!.click());
+
+    expect(container.querySelectorAll(".conversation-row")).toHaveLength(2);
+    expect(container.textContent).toContain("待处理的问题");
+    expect(container.querySelector(".conversation-row.active")?.textContent).toContain("新对话");
+  });
+
   it("restores the selected conversation and messages after remount", async () => {
     const first = await renderApp();
     await waitFor(() => !first.querySelector<HTMLButtonElement>(".new-chat")?.disabled);
